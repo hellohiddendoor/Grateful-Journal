@@ -357,18 +357,6 @@ export default function JournalEditor({
         </div>
       )}
 
-      {/* Show existing AI response for past entries */}
-      {readOnly && existingEntry?.ai_response && (
-        <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-xl">✨</span>
-            <p className="text-sm font-semibold text-amber-700 uppercase tracking-wide">
-              Journal coach reflection
-            </p>
-          </div>
-          <p className="text-gray-700 leading-relaxed">{existingEntry.ai_response}</p>
-        </div>
-      )}
     </div>
   );
 }
