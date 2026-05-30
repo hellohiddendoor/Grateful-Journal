@@ -19,6 +19,8 @@ export interface Entry {
   has_emotion_word: boolean;
   emotion_words_found: string[];
   ai_response: string | null;
+  media_url: string | null;
+  media_type: string | null;
   entry_date: string;
   created_at: string;
 }
@@ -60,6 +62,8 @@ export type Database = {
           has_emotion_word: boolean;
           emotion_words_found: string[];
           ai_response?: string | null | undefined;
+          media_url?: string | null | undefined;
+          media_type?: string | null | undefined;
           entry_date: string;
           created_at?: string | undefined;
         };
@@ -69,6 +73,8 @@ export type Database = {
           has_emotion_word?: boolean | undefined;
           emotion_words_found?: string[] | undefined;
           ai_response?: string | null | undefined;
+          media_url?: string | null | undefined;
+          media_type?: string | null | undefined;
           entry_date?: string | undefined;
           created_at?: string | undefined;
         };

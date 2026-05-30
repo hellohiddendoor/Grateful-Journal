@@ -5,8 +5,11 @@ import CalendarSidebar from "@/components/CalendarSidebar";
 import { getTodayLocal, getCurrentMonthLocal } from "@/lib/date";
 import type { Entry, Profile } from "@/types/database";
 
+// Always fetch fresh — never serve a cached version with stale entry data
+export const dynamic = "force-dynamic";
+
 interface PageProps {
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<{ date?: string; month?: string }>;
 }
 
 export default async function JournalPage({ searchParams }: PageProps) {
@@ -28,25 +31,32 @@ export default async function JournalPage({ searchParams }: PageProps) {
 
   const today = getTodayLocal();
   const params = await searchParams;
-  // Clamp requested date: no future dates allowed
+
+  // Selected entry date — clamp to today if in the future or missing
   const selectedDate =
-    params.date && params.date <= today ? params.date : today;
+    params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) && params.date <= today
+      ? params.date
+      : today;
+
   const isToday = selectedDate === today;
 
-  // Determine which month to show in the calendar
-  const yearMonth = selectedDate.slice(0, 7) || getCurrentMonthLocal();
+  // Calendar display month — can be different from the selected entry's month
+  const yearMonth =
+    params.month && /^\d{4}-\d{2}$/.test(params.month)
+      ? params.month
+      : selectedDate.slice(0, 7) || getCurrentMonthLocal();
 
-  // Fetch entry for the selected date
+  // ── Fetch the entry for the selected date ──────────────────────────────────
   const { data: selectedEntry } = (await db
     .from("entries")
     .select("*")
     .eq("user_id", user!.id)
-    .eq("entry_date", selectedDate)
-    .single()) as { data: Entry | null; error: unknown };
+    .eq("entry_date", selectedDate)   // exact date match — this is the critical fix
+    .maybeSingle()) as { data: Entry | null; error: unknown };
 
-  // Fetch all entry dates for the current calendar month (for dot indicators)
-  const monthStart = `${yearMonth}-01`;
+  // ── Fetch entry dates for the displayed calendar month (dot indicators) ────
   const [y, m] = yearMonth.split("-").map(Number);
+  const monthStart = `${yearMonth}-01`;
   const monthEnd = `${yearMonth}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`;
 
   const { data: monthEntries } = (await db
@@ -59,7 +69,9 @@ export default async function JournalPage({ searchParams }: PageProps) {
     error: unknown;
   };
 
-  const entryDates = (monthEntries ?? []).map((e) => e.entry_date);
+  const entryDates = (monthEntries ?? []).map(
+    (e: { entry_date: string }) => e.entry_date
+  );
 
   return (
     <div className="min-h-screen bg-amber-50">
@@ -83,16 +95,14 @@ export default async function JournalPage({ searchParams }: PageProps) {
         </form>
       </header>
 
-      {/* Main layout — sidebar + editor */}
+      {/* Sidebar + editor */}
       <main className="max-w-5xl mx-auto px-4 py-8 flex gap-6 items-start">
-        {/* Calendar */}
         <CalendarSidebar
           yearMonth={yearMonth}
           entryDates={entryDates}
           selectedDate={selectedDate}
         />
 
-        {/* Journal editor */}
         <div className="flex-1 min-w-0">
           <JournalEditor
             userId={user!.id}
