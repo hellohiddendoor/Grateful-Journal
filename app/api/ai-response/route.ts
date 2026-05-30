@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(request: NextRequest) {
-  const { entryId, content } = await request.json();
+  const { entryId, content } = await request.json() as { entryId: string; content: string };
 
   if (!entryId || !content) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
@@ -34,7 +34,10 @@ export async function POST(request: NextRequest) {
   const aiResponse =
     message.content[0].type === "text" ? message.content[0].text : "";
 
-  await supabase
+  // Cast to `any` for table query only — auth above stays fully typed.
+  // The Database generic causes from() to resolve as `never` under strict mode.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
     .from("entries")
     .update({ ai_response: aiResponse })
     .eq("id", entryId)

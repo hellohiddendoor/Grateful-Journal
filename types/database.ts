@@ -23,19 +23,61 @@ export interface Entry {
   created_at: string;
 }
 
-export interface Database {
+// Matches the GenericSchema shape required by @supabase/supabase-js
+export type Database = {
   public: {
     Tables: {
       profiles: {
         Row: Profile;
-        Insert: Omit<Profile, "created_at"> & { created_at?: string };
-        Update: Partial<Omit<Profile, "id">>;
+        Insert: {
+          id: string;
+          role: string;
+          display_name: string;
+          streak_count?: number | undefined;
+          longest_streak?: number | undefined;
+          last_entry_date?: string | null | undefined;
+          reminder_time?: string | undefined;
+          created_at?: string | undefined;
+        };
+        Update: {
+          role?: string | undefined;
+          display_name?: string | undefined;
+          streak_count?: number | undefined;
+          longest_streak?: number | undefined;
+          last_entry_date?: string | null | undefined;
+          reminder_time?: string | undefined;
+          created_at?: string | undefined;
+        };
+        Relationships: never[];
       };
       entries: {
         Row: Entry;
-        Insert: Omit<Entry, "id" | "created_at"> & { id?: string; created_at?: string };
-        Update: Partial<Omit<Entry, "id" | "user_id">>;
+        Insert: {
+          id?: string | undefined;
+          user_id: string;
+          content: string;
+          char_count: number;
+          has_emotion_word: boolean;
+          emotion_words_found: string[];
+          ai_response?: string | null | undefined;
+          entry_date: string;
+          created_at?: string | undefined;
+        };
+        Update: {
+          content?: string | undefined;
+          char_count?: number | undefined;
+          has_emotion_word?: boolean | undefined;
+          emotion_words_found?: string[] | undefined;
+          ai_response?: string | null | undefined;
+          entry_date?: string | undefined;
+          created_at?: string | undefined;
+        };
+        Relationships: never[];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
-}
+};

@@ -48,7 +48,10 @@ export default function SignupPage() {
     // If email confirmation is disabled in Supabase, the session is active
     // immediately and we can upsert the profile directly as a safety net.
     if (data.user) {
-      await supabase.from("profiles").upsert(
+      // Cast to `any` — this is a client-side safety net only.
+      // The DB trigger (handle_new_user) is the primary profile creation path.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("profiles").upsert(
         {
           id: data.user.id,
           display_name: displayName.trim(),
