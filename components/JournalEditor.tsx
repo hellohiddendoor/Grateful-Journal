@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useRef, useState } from "react";
-import { formatDisplayDateWithDay } from "@/lib/date";
+import { getTodayLocal, formatDisplayDateWithDay } from "@/lib/date";
 import type { Entry } from "@/types/database";
 
 interface Props {
@@ -52,7 +52,8 @@ export default function JournalEditor({
     // Use the typed client — storage doesn't have the Database generic issue
     const supabase = createClient();
     const ext = file.name.split(".").pop() ?? "bin";
-    const path = `${userId}/${entryDate}/${Date.now()}.${ext}`;
+    // Use client-side Toronto date for the folder path, same as entry_date
+    const path = `${userId}/${getTodayLocal()}/${Date.now()}.${ext}`;
 
     const { data: uploadData, error: uploadErr } = await supabase.storage
       .from("journal-media")
@@ -89,13 +90,20 @@ export default function JournalEditor({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createClient() as any;
 
+    // Compute the entry date client-side at save-time in America/Toronto timezone.
+    // Do NOT use the server-rendered `entryDate` prop here — it was computed at
+    // page-load time and could be stale if the user crosses midnight, or if the
+    // server ran without full ICU data. getTodayLocal() calls the browser's own
+    // Intl API with the explicit timezone, which is always accurate.
+    const todayToronto = getTodayLocal();
+
     const entryData = {
       user_id: userId,
       content,
       char_count: charCount,
       has_emotion_word: false,
       emotion_words_found: [],
-      entry_date: entryDate,
+      entry_date: todayToronto,
       media_url: mediaUrl ?? null,
       media_type: mediaType ?? null,
     };
