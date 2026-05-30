@@ -1,10 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import JournalEditor from "@/components/JournalEditor";
-import { getTodayLocal, formatDisplayDate } from "@/lib/date";
+import CalendarSidebar from "@/components/CalendarSidebar";
+import { getTodayLocal, getCurrentMonthLocal } from "@/lib/date";
 import type { Entry, Profile } from "@/types/database";
 
-export default async function JournalPage() {
+interface PageProps {
+  searchParams: Promise<{ date?: string }>;
+}
+
+export default async function JournalPage({ searchParams }: PageProps) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -12,8 +17,6 @@ export default async function JournalPage() {
 
   if (!user) redirect("/login");
 
-  // Cast to `any` for table queries only — the Database generic causes
-  // from() to resolve as `never` under strict mode; auth stays fully typed above.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
 
@@ -23,17 +26,44 @@ export default async function JournalPage() {
     .eq("id", user!.id)
     .single()) as { data: Profile | null; error: unknown };
 
-  const today = getTodayLocal(); // YYYY-MM-DD in America/Toronto timezone
+  const today = getTodayLocal();
+  const params = await searchParams;
+  // Clamp requested date: no future dates allowed
+  const selectedDate =
+    params.date && params.date <= today ? params.date : today;
+  const isToday = selectedDate === today;
 
-  const { data: todayEntry } = (await db
+  // Determine which month to show in the calendar
+  const yearMonth = selectedDate.slice(0, 7) || getCurrentMonthLocal();
+
+  // Fetch entry for the selected date
+  const { data: selectedEntry } = (await db
     .from("entries")
     .select("*")
     .eq("user_id", user!.id)
-    .eq("entry_date", today)
+    .eq("entry_date", selectedDate)
     .single()) as { data: Entry | null; error: unknown };
+
+  // Fetch all entry dates for the current calendar month (for dot indicators)
+  const monthStart = `${yearMonth}-01`;
+  const [y, m] = yearMonth.split("-").map(Number);
+  const monthEnd = `${yearMonth}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`;
+
+  const { data: monthEntries } = (await db
+    .from("entries")
+    .select("entry_date")
+    .eq("user_id", user!.id)
+    .gte("entry_date", monthStart)
+    .lte("entry_date", monthEnd)) as {
+    data: { entry_date: string }[] | null;
+    error: unknown;
+  };
+
+  const entryDates = (monthEntries ?? []).map((e) => e.entry_date);
 
   return (
     <div className="min-h-screen bg-amber-50">
+      {/* Header */}
       <header className="bg-white border-b border-amber-100 px-6 py-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-amber-800">Grateful Journal</h1>
@@ -46,19 +76,31 @@ export default async function JournalPage() {
         <form action="/api/auth/signout" method="post">
           <button
             type="submit"
-            className="text-sm text-gray-500 hover:text-gray-700"
+            className="text-sm text-gray-500 hover:text-gray-700 transition"
           >
             Sign out
           </button>
         </form>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-8">
-        <JournalEditor
-          userId={user!.id}
-          existingEntry={todayEntry ?? null}
-          entryDate={today}
+      {/* Main layout — sidebar + editor */}
+      <main className="max-w-5xl mx-auto px-4 py-8 flex gap-6 items-start">
+        {/* Calendar */}
+        <CalendarSidebar
+          yearMonth={yearMonth}
+          entryDates={entryDates}
+          selectedDate={selectedDate}
         />
+
+        {/* Journal editor */}
+        <div className="flex-1 min-w-0">
+          <JournalEditor
+            userId={user!.id}
+            existingEntry={selectedEntry ?? null}
+            entryDate={selectedDate}
+            readOnly={!isToday}
+          />
+        </div>
       </main>
     </div>
   );

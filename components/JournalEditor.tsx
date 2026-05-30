@@ -2,49 +2,48 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useState } from "react";
-import { formatDisplayDate } from "@/lib/date";
+import { formatDisplayDateWithDay } from "@/lib/date";
 import type { Entry } from "@/types/database";
-
-const EMOTION_WORDS = [
-  "감사", "기쁨", "행복", "사랑", "설렘", "뿌듯", "따뜻", "평온", "안도",
-  "희망", "즐거움", "만족", "편안", "그리움", "감동", "위로", "신남",
-  "고마움", "다행", "보람", "충만", "벅참",
-];
 
 interface Props {
   userId: string;
   existingEntry: Entry | null;
-  entryDate: string;
+  entryDate: string;    // YYYY-MM-DD
+  readOnly?: boolean;   // true when viewing a past date
 }
 
-export default function JournalEditor({ userId, existingEntry, entryDate }: Props) {
+export default function JournalEditor({
+  userId,
+  existingEntry,
+  entryDate,
+  readOnly = false,
+}: Props) {
   const [content, setContent] = useState<string>(existingEntry?.content ?? "");
   const [aiResponse, setAiResponse] = useState<string | null>(
     existingEntry?.ai_response ?? null
   );
   const [saving, setSaving] = useState<boolean>(false);
+  const [loadingAi, setLoadingAi] = useState<boolean>(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const foundEmotionWords = EMOTION_WORDS.filter((w) => content.includes(w));
   const charCount = content.length;
   const isValid = charCount >= 50;
 
   async function handleSave(): Promise<void> {
-    if (!isValid) return;
+    if (!isValid || readOnly) return;
     setSaving(true);
     setMessage(null);
+    setAiResponse(null);
 
-    // Cast to `any` for table queries — the Database generic causes from()
-    // to resolve as `never` under strict mode.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = createClient() as any; // browser client, no auth calls needed here
+    const supabase = createClient() as any;
 
     const entryData = {
       user_id: userId,
       content,
       char_count: charCount,
-      has_emotion_word: foundEmotionWords.length > 0,
-      emotion_words_found: foundEmotionWords,
+      has_emotion_word: false,
+      emotion_words_found: [],
       entry_date: entryDate,
     };
 
@@ -58,7 +57,7 @@ export default function JournalEditor({ userId, existingEntry, entryDate }: Prop
         .select()
         .single()) as { data: Entry | null; error: { message: string } | null };
       if (error) {
-        setMessage("Save failed: " + error.message);
+        setMessage("❌ Failed to save: " + error.message);
         setSaving(false);
         return;
       }
@@ -70,15 +69,19 @@ export default function JournalEditor({ userId, existingEntry, entryDate }: Prop
         .select()
         .single()) as { data: Entry | null; error: { message: string } | null };
       if (error) {
-        setMessage("Save failed: " + error.message);
+        setMessage("❌ Failed to save: " + error.message);
         setSaving(false);
         return;
       }
       savedEntry = data;
     }
 
-    // Request AI response — non-critical, errors are swallowed
+    setSaving(false);
+    setMessage("✓ Entry saved!");
+
+    // Fetch AI response
     if (savedEntry) {
+      setLoadingAi(true);
       try {
         const res = await fetch("/api/ai-response", {
           method: "POST",
@@ -86,73 +89,108 @@ export default function JournalEditor({ userId, existingEntry, entryDate }: Prop
           body: JSON.stringify({ entryId: savedEntry.id, content }),
         });
         const json = (await res.json()) as { aiResponse?: string };
-        if (json.aiResponse) setAiResponse(json.aiResponse);
-      } catch (_e) {
-        // AI response is non-critical — continue silently
+        if (json.aiResponse) {
+          setAiResponse(json.aiResponse);
+        }
+      } catch {
+        // AI response is non-critical
+      } finally {
+        setLoadingAi(false);
       }
     }
-
-    setMessage("Saved ✓");
-    setSaving(false);
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* Entry card */}
       <div className="bg-white rounded-2xl shadow-sm p-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-800">
-            Today&apos;s Grateful Journal
-          </h2>
-          <span className="text-sm text-gray-400">{formatDisplayDate(entryDate)}</span>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-800">
+              {readOnly ? "Past Entry" : "Today's Journal"}
+            </h2>
+            <p className="text-sm text-amber-600 mt-0.5">
+              {formatDisplayDateWithDay(entryDate)}
+            </p>
+          </div>
+          {readOnly && (
+            <span className="text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-medium">
+              Read only
+            </span>
+          )}
         </div>
 
         <textarea
           value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="Write freely about what you're grateful for today. (minimum 50 characters)"
+          onChange={(e) => !readOnly && setContent(e.target.value)}
+          readOnly={readOnly}
+          placeholder="Write freely about what you're grateful for today — big or small, anything counts. (minimum 50 characters)"
           rows={8}
-          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-700 resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 text-base leading-relaxed"
+          className={`w-full border rounded-xl px-4 py-3 text-gray-700 resize-none focus:outline-none text-base leading-relaxed ${
+            readOnly
+              ? "border-gray-100 bg-gray-50 cursor-default"
+              : "border-gray-200 focus:ring-2 focus:ring-amber-300"
+          }`}
         />
 
-        <div className="flex items-center justify-between mt-3">
-          <div className="flex gap-2 flex-wrap">
-            {foundEmotionWords.map((w) => (
-              <span
-                key={w}
-                className="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-full"
-              >
-                {w}
-              </span>
-            ))}
+        {!readOnly && (
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-xs text-gray-400">
+              {charCount >= 50
+                ? "✓ Ready to save"
+                : `${50 - charCount} more characters needed`}
+            </span>
+            <span
+              className={`text-sm font-medium ${
+                charCount >= 50 ? "text-green-600" : "text-gray-400"
+              }`}
+            >
+              {charCount} / 50+
+            </span>
           </div>
-          <span
-            className={`text-sm font-medium ${
-              charCount >= 50 ? "text-green-600" : "text-gray-400"
-            }`}
-          >
-            {charCount} chars{charCount < 50 && ` (${50 - charCount} more)`}
-          </span>
-        </div>
+        )}
 
-        <button
-          onClick={handleSave}
-          disabled={!isValid || saving}
-          className="mt-4 w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white font-semibold py-2.5 rounded-xl transition"
-        >
-          {saving ? "Saving..." : existingEntry ? "Update entry" : "Save today's entry"}
-        </button>
+        {!readOnly && (
+          <button
+            onClick={handleSave}
+            disabled={!isValid || saving || loadingAi}
+            className="mt-4 w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white font-semibold py-2.5 rounded-xl transition"
+          >
+            {saving
+              ? "Saving..."
+              : loadingAi
+              ? "Getting AI response..."
+              : existingEntry
+              ? "Update Entry"
+              : "Save Entry"}
+          </button>
+        )}
 
         {message && (
-          <p className="text-center text-sm text-green-600 mt-2">{message}</p>
+          <p className="text-center text-sm text-green-600 mt-3 font-medium">{message}</p>
         )}
       </div>
 
-      {aiResponse && (
-        <div className="bg-amber-100 border border-amber-200 rounded-2xl p-6">
-          <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-2">
-            A warm word from AI
-          </p>
-          <p className="text-gray-700 leading-relaxed">{aiResponse}</p>
+      {/* AI Response — shown while loading and after */}
+      {(loadingAi || aiResponse) && (
+        <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xl">✨</span>
+            <p className="text-sm font-semibold text-amber-700 uppercase tracking-wide">
+              A reflection from your journal coach
+            </p>
+          </div>
+          {loadingAi ? (
+            <div className="flex items-center gap-2 text-amber-600">
+              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              <span className="text-sm">Generating a personal reflection...</span>
+            </div>
+          ) : (
+            <p className="text-gray-700 leading-relaxed">{aiResponse}</p>
+          )}
         </div>
       )}
     </div>

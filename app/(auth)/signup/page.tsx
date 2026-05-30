@@ -5,10 +5,26 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { UserRole } from "@/types/database";
 
+function EyeIcon({ open }: { open: boolean }) {
+  return open ? (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+    </svg>
+  ) : (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+    </svg>
+  );
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<UserRole>("Julie");
   const [error, setError] = useState<string | null>(null);
@@ -25,13 +41,18 @@ export default function SignupPage() {
       return;
     }
 
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      setLoading(false);
+      return;
+    }
+
     const supabase = createClient();
 
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        // Both keys must be present so handle_new_user() picks them up reliably
         data: {
           display_name: displayName.trim(),
           role: role,
@@ -45,18 +66,11 @@ export default function SignupPage() {
       return;
     }
 
-    // If email confirmation is disabled in Supabase, the session is active
-    // immediately and we can upsert the profile directly as a safety net.
     if (data.user) {
-      // Cast to `any` — this is a client-side safety net only.
-      // The DB trigger (handle_new_user) is the primary profile creation path.
+      // Safety-net upsert in case the DB trigger fires before session is ready.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any).from("profiles").upsert(
-        {
-          id: data.user.id,
-          display_name: displayName.trim(),
-          role: role,
-        },
+        { id: data.user.id, display_name: displayName.trim(), role },
         { onConflict: "id", ignoreDuplicates: false }
       );
     }
@@ -64,6 +78,9 @@ export default function SignupPage() {
     router.push("/journal");
     router.refresh();
   }
+
+  const passwordInputClass =
+    "w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-amber-400";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-amber-50">
@@ -74,11 +91,9 @@ export default function SignupPage() {
         <p className="text-center text-amber-600 text-sm mb-6">Create your account</p>
 
         <form onSubmit={handleSignup} className="space-y-4">
-          {/* Display Name */}
+          {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Your Name
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
             <input
               type="text"
               value={displayName}
@@ -91,9 +106,7 @@ export default function SignupPage() {
 
           {/* Role */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Who are you?
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Who are you?</label>
             <select
               value={role}
               onChange={(e) => setRole(e.target.value as UserRole)}
@@ -107,9 +120,7 @@ export default function SignupPage() {
 
           {/* Email */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <input
               type="email"
               value={email}
@@ -122,18 +133,53 @@ export default function SignupPage() {
 
           {/* Password */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Minimum 6 characters"
-              required
-              minLength={6}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Minimum 6 characters"
+                required
+                minLength={6}
+                className={passwordInputClass}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600"
+                tabIndex={-1}
+              >
+                <EyeIcon open={showPassword} />
+              </button>
+            </div>
+          </div>
+
+          {/* Confirm Password */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter your password"
+                required
+                minLength={6}
+                className={passwordInputClass}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((v) => !v)}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600"
+                tabIndex={-1}
+              >
+                <EyeIcon open={showConfirmPassword} />
+              </button>
+            </div>
+            {confirmPassword && password !== confirmPassword && (
+              <p className="text-red-500 text-xs mt-1">Passwords do not match.</p>
+            )}
           </div>
 
           {error && <p className="text-red-500 text-sm">{error}</p>}
@@ -149,9 +195,7 @@ export default function SignupPage() {
 
         <p className="text-center text-sm text-gray-500 mt-4">
           Already have an account?{" "}
-          <a href="/login" className="text-amber-600 hover:underline">
-            Log in
-          </a>
+          <a href="/login" className="text-amber-600 hover:underline">Log in</a>
         </p>
       </div>
     </div>
