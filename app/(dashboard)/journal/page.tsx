@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import JournalEditor from "@/components/JournalEditor";
+import { getTodayLocal, formatDisplayDate } from "@/lib/date";
 import type { Entry, Profile } from "@/types/database";
 
 export default async function JournalPage() {
@@ -22,7 +23,7 @@ export default async function JournalPage() {
     .eq("id", user!.id)
     .single()) as { data: Profile | null; error: unknown };
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = getTodayLocal(); // YYYY-MM-DD in America/Toronto timezone
 
   const { data: todayEntry } = (await db
     .from("entries")

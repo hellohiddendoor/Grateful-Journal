@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useState } from "react";
+import { formatDisplayDate } from "@/lib/date";
 import type { Entry } from "@/types/database";
 
 const EMOTION_WORDS = [
@@ -102,7 +103,7 @@ export default function JournalEditor({ userId, existingEntry, entryDate }: Prop
           <h2 className="text-lg font-semibold text-gray-800">
             Today&apos;s Grateful Journal
           </h2>
-          <span className="text-sm text-gray-400">{entryDate}</span>
+          <span className="text-sm text-gray-400">{formatDisplayDate(entryDate)}</span>
         </div>
 
         <textarea
