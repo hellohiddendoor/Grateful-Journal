@@ -104,7 +104,11 @@ export default async function JournalPage({ searchParams }: PageProps) {
         />
 
         <div className="flex-1 min-w-0">
+          {/* key={selectedDate} forces a full remount when the date changes,
+              resetting all local state (content, aiResponse, media, etc.)
+              so stale data from a previous date is never shown. */}
           <JournalEditor
+            key={selectedDate}
             userId={user!.id}
             existingEntry={selectedEntry ?? null}
             entryDate={selectedDate}
