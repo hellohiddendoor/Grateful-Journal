@@ -19,8 +19,9 @@ export interface Entry {
   has_emotion_word: boolean;
   emotion_words_found: string[];
   ai_response: string | null;
-  media_url: string | null;
-  media_type: string | null;
+  media_url: string | null;   // legacy single-photo column (kept for compat)
+  media_type: string | null;  // legacy
+  media_urls: string[];       // new: up to 5 photo URLs
   entry_date: string;
   created_at: string;
 }
@@ -64,6 +65,7 @@ export type Database = {
           ai_response?: string | null | undefined;
           media_url?: string | null | undefined;
           media_type?: string | null | undefined;
+          media_urls?: string[] | undefined;
           entry_date: string;
           created_at?: string | undefined;
         };
@@ -75,6 +77,7 @@ export type Database = {
           ai_response?: string | null | undefined;
           media_url?: string | null | undefined;
           media_type?: string | null | undefined;
+          media_urls?: string[] | undefined;
           entry_date?: string | undefined;
           created_at?: string | undefined;
         };
