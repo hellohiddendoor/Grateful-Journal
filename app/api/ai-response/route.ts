@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     const message = await anthropic.messages.create({
       // Use the full versioned model name — short aliases like "claude-sonnet-4-5"
       // are not valid API identifiers and cause 404/400 from Anthropic's endpoint.
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-sonnet-4-5",
       max_tokens: 300,
       system:
         "You are a warm, empathetic gratitude journal coach. Read the user's journal entry and respond with 2–3 short sentences of genuine, encouraging feedback in English. Help them feel the depth of their gratitude and inspire them to keep journaling.",
